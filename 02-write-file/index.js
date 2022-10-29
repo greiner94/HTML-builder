@@ -7,7 +7,7 @@ fs.writeFile(
   '',
   (err) => {
       if (err) throw err;
-      console.log('Введите текст, который запишется в text.txt:');
+      stdout.write('Введите текст, который запишется в text.txt:');
   }
 );
 

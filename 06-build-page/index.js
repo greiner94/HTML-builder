@@ -1,9 +1,90 @@
 const { join } = require('node:path');
 const { mkdir, readdir } = require('node:fs/promises');
 const { createReadStream, writeFile } = require('fs');
+const { extname } = require('node:path');
+const { unlink } = require('node:fs/promises');
+const { createWriteStream } = require('fs');
+const { copyFile, rm}  = require('node:fs/promises');
 
-const { mergeStyles } = require('../05-merge-styles/mergeStyles');
-const { copyDirectory } = require('../04-copy-directory/copyDirectory');
+const mergeStyles = function mergeStyles(src = join(__dirname, 'styles'), 
+dist = join(__dirname, 'project-dist'), nameOfBundle = 'bundle.css') {
+
+  const srcPath = src;
+  const distPath = dist;
+  
+  async function delDestCss() {
+    await readdir(distPath)
+    .then(files => {
+      files.forEach(file => {
+        if (extname(join(distPath, file)) == '.css') {
+          unlink(join(distPath, file));
+        }
+      });
+    });
+  }
+  
+  async function getCssFromSrc() {
+    let cssFilesArr = [];
+    const allFiles = await readdir(srcPath);
+  
+    allFiles.forEach(file => {
+      if(extname(join(srcPath, file)) == '.css') {
+        cssFilesArr.push(join(srcPath, file));
+      }
+    });
+    
+    return cssFilesArr;
+  }
+  
+  async function combineCss(filesDist) {
+  
+    return await new Promise((resolve, reject) => {
+      let resultFile = '';
+  
+      filesDist.forEach((file, index) => {
+        const readableStream = createReadStream(file, 'utf-8');
+        readableStream.on('data', chunk => resultFile += chunk);
+  
+        readableStream.on('end', () => {
+          if (index == filesDist.length - 1) {
+            resolve(resultFile);
+          }
+        });
+  
+        readableStream.on('error', error => reject(error));
+  
+      });
+    });
+   
+  }
+  
+  function writeToFile(text) {
+    const output = createWriteStream(join(distPath, nameOfBundle));
+    output.write(text);
+  }
+  delDestCss()
+  .then(() => getCssFromSrc())
+  .then(res => combineCss(res))
+  .then(res => writeToFile(res));
+
+};
+
+const copyDirectory = async function copyDirectory(src, dest) {
+    await rm(dest, { force: true, recursive: true });
+    await mkdir(dest, { recursive: true });
+    let files = await readdir(src, { withFileTypes: true });
+
+    for (let file of files) {
+        let srcPath = join(src, file.name);
+        let destPath = join(dest, file.name);
+
+        if (file.isDirectory()) {
+          await copyDirectory(srcPath, destPath);
+        } else {
+          await copyFile(srcPath, destPath);
+        }
+    }
+};
 
 const dest = join(__dirname, 'project-dist');
 const templateDist = join(__dirname, 'template.html');
